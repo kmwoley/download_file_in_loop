@@ -46,6 +46,8 @@ import datetime
 import yaml
 
 # Project Imports
+from b2sdk.v1 import B2Api
+from b2sdk.v1 import InMemoryAccountInfo
 
 class B2Connector:
 
@@ -141,7 +143,27 @@ class B2Connector:
             if r['bucketName'] == bucket_name:
                 return r['bucketId']
 
-    def download_file_by_name(self, filename, expected_sha1, attempt_num):
+    def get_file_list(self, filename):
+        '''
+        Download a list of files under the location of filename
+        :param filename: filename
+        :return: list of filenames
+        '''
+
+        info = InMemoryAccountInfo()
+        b2_api = B2Api(info)
+        b2_api.authorize_account("production", self.key_id, self.app_key)
+
+        bucket = b2_api.get_bucket_by_name(self.bucket_name)
+        generator = bucket.ls(filename, show_versions=False, recursive=True)
+
+        filelist = []
+        for file_version_info, folder_name in generator:
+            filelist.append(file_version_info.file_name)
+
+        return filelist
+
+    def download_file_by_name(self, filename, attempt_num):
         '''
         Download a file using b2_download_file_by_name API
         :param filename: filename
@@ -163,26 +185,25 @@ class B2Connector:
                                                      headers=headers)
 
         print('[Attempt: %s]: Request made at %s' % (attempt_num, timestamp))
+        print('[Attempt: %s]: File: %s' % (attempt_num, filename))
 
         if res.status_code != 200:
 
             # If the status code isn't 200, just report it and continue. A
             # 900 error indicates a RequestExeception.
 
-            print ('[Attempt: %s]: Returned status code %s. Continuing.'
-                   % attempt_num, str(res.status_code))
+            print('[Attempt: %s]: Returned status code %s. Continuing.' % 
+                  (attempt_num, str(res.status_code)))
         else:
             # If 200, let's check the contents of the response SHA1 with the
             # SHA1 returned by B2 with the expected SHA1.
 
             res_content_sha1 = hashlib.sha1(res.content).hexdigest()
             b2_content_sha1  = res.headers['X-Bz-Content-Sha1']
-            if (res_content_sha1 == expected_sha1 == b2_content_sha1):
+            if (res_content_sha1 == b2_content_sha1):
                 print('[Attempt: %s]: All SHA1 match.' % attempt_num)
             else:
                 print('[Attempt: %s]: SHA1 do not match.' % attempt_num)
-                print('[Attempt: %s]: expected_content_sha1: %s' %
-                      (attempt_num, expected_sha1))
                 print('[Attempt: %s]: b2_content_sha1: %s' %
                       (attempt_num, b2_content_sha1))
                 print('[Attempt: %s]: res_content_sha1: %s' %

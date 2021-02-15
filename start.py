@@ -34,18 +34,17 @@ SOFTWARE.
 
 import sys
 import datetime
+import random
 from b2_connector import B2Connector
 
-if (len(sys.argv) < 4 or len(sys.argv) > 4):
+if (len(sys.argv) < 3 or len(sys.argv) > 3):
     print('Usage: start.py '
-          '[filepath] '
-          '[Sha1] '
+          '[filepath]'
           '[num of requests]')
     exit()
 
 filepath  = sys.argv[1]
-sha1_hash = sys.argv[2]
-loops     = int(sys.argv[3])
+loops     = int(sys.argv[2])
 
 # Instantiate B2 connector
 b2 = B2Connector()
@@ -54,8 +53,11 @@ now = datetime.datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
 
 print('[%s]: Starting downloads, %s times' % (now, str(loops)))
 
+filelist = b2.get_file_list(filepath)
+filelist = random.sample(filelist, loops)
+
 for x in range(loops):
-    result = b2.download_file_by_name(filepath, sha1_hash, str(x))
+    result = b2.download_file_by_name(filelist[x], str(x))
 
 now = datetime.datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
 print('[%s]: End' % now)
